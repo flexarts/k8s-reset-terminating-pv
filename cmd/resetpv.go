@@ -187,7 +187,7 @@ func recoverPVC(ctx context.Context, client *clientv3.Client) error {
 	}
 
 	if len(resp.Kvs) < 1 {
-		return fmt.Errorf("cannot find persistent volume claim [%s] in etcd with key [%s]\nplease check the k8s-key-prefix and the persistent volume claim name are set correctly", pvName, key)
+		return fmt.Errorf("cannot find persistent volume claim [%s] in etcd with key [%s]\nplease check the k8s-key-prefix and the persistent volume claim name are set correctly", pvcName, key)
 	}
 
 	// Decode protobuf value to PV struct
@@ -198,7 +198,7 @@ func recoverPVC(ctx context.Context, client *clientv3.Client) error {
 
 	// Set PV status from Terminating to Bound by removing value of DeletionTimestamp and DeletionGracePeriodSeconds
 	if (*pvc).ObjectMeta.DeletionTimestamp == nil {
-		return fmt.Errorf("persistent volume claim [%s] is not in terminating status", pvName)
+		return fmt.Errorf("persistent volume claim [%s] is not in terminating status", pvcName)
 	}
 	(*pvc).ObjectMeta.DeletionTimestamp = nil
 	(*pvc).ObjectMeta.DeletionGracePeriodSeconds = nil
