@@ -4,7 +4,9 @@ Reset persistent volume status from terminating back to bound. [Here are the det
 
 ## Purpose
 
-When delete a kubernetes persistent volume by accident, it may stuck in the terminating status due to `kubernetes.io/pv-protection` finalizer prevent it from being deleted. You can use this tool to reset its status back to bound.
+When delete a kubernetes **persistent volume** by accident, it may stuck in the terminating status due to `kubernetes.io/pv-protection` finalizer prevent it from being deleted. You can use this tool to reset its status back to bound.
+
+Same thing applies when you delete a kubernetes **persistent volume claim** with auto-provisioning PV by accident, it may stuck in the terminating status due to `kubernetes.io/pv-protection` finalizer prevent it from being deleted. You can use this tool to reset its status back to bound.
 
 ## Installing
 
@@ -23,6 +25,7 @@ go build -o resetpv
 ```text
 Usage:
   resetpv [flags] <persistent volume name>
+  resetpv [flags] <persistent volume claim name incl. namespace>
 
 Flags:
       --etcd-ca        string   CA Certificate used by etcd (default "ca.crt")
@@ -32,6 +35,7 @@ Flags:
       --etcd-port      int      The etcd port number (default 2379)
       --k8s-key-prefix string   The etcd key prefix for kubernetes resources. (default "registry")
   -h, --help                    help for resetpv
+      --mode string             Mode = pv|pvc (default "pv")
 ```
 
 For simplicity, you can name the etcd certificate ca.crt, etcd.crt, etcd.key, and put them in the same directory as the tool(resetpv).
@@ -44,11 +48,18 @@ kubectl port-forward pods/etcd-member-master0 2379:2379 -n etcd
 
 `--k8s-key-prefix`: Default set to `registry` for the community version of kubernetes as it uses `/registry` as etcd key prefix, the key for persistent volume pv1 is `/registry/persistentvolumes/pv1`. Set to `kubernetes.io` for OpenShift as it uses `/kubernetes.io` as prefix and the key for pv1 is `/kubernetes.io/persistentvolumes/pv1`.
 
-Example:
+Example fo PV:
 
 ```shell
 ./resetpv --k8s-key-prefix kubernetes.io pv-eef4ec4b-326d-47e6-b11c-6474a5fd4d89
 ```
+
+Example fo PVC:
+
+```shell
+./resetpv --k8s-key-prefix registry --mode pvc default/testpvc
+```
+
 
 ## License
 

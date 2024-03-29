@@ -19,3 +19,5 @@ resetpv
 ca.crt
 etcd.crt
 etcd.key
+
+.vscode
