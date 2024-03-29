@@ -198,7 +198,7 @@ func recoverPVC(ctx context.Context, client *clientv3.Client) error {
 
 	// Set PV status from Terminating to Bound by removing value of DeletionTimestamp and DeletionGracePeriodSeconds
 	if (*pvc).ObjectMeta.DeletionTimestamp == nil {
-		return fmt.Errorf("persistent volume claim [%s] is not in terminating status", pvName)
+		return fmt.Errorf("persistent volume claim [%s] is not in terminating status", pvcName)
 	}
 	(*pvc).ObjectMeta.DeletionTimestamp = nil
 	(*pvc).ObjectMeta.DeletionGracePeriodSeconds = nil
