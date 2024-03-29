@@ -28,10 +28,8 @@ var (
 	etcdCA, etcdCert, etcdKey, etcdHost string
 	etcdPort                            int
 
-	mode         string
 	k8sKeyPrefix string
 	pvName       string
-	pvcName      string
 
 	cmd = &cobra.Command{
 		Use:   "resetpv [flags] <persistent volume name>",
@@ -41,28 +39,18 @@ var (
 			if len(args) != 1 {
 				return errors.New("requires one persistent volume name argument")
 			}
-			if mode == "pv" {
-				pvName = args[0]
-			} else if mode == "pvc" {
-				pvcName = args[0]
-			} else {
-				return fmt.Errorf("mode '%s' is unkown, needs to be either 'pv' (default) or 'pvc'", mode)
-			}
+			pvName = args[0]
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if mode == "pv" {
-				return resetPV()
-			} else {
-				return resetPVC()
-			}
+			err := resetPV()
+			return err
 		},
 	}
 )
 
 // Execute reset the Terminating PersistentVolume to Bound status.
 func Execute() {
-	cmd.Flags().StringVar(&mode, "mode", "pv", "Mode = pv|pvc")
 	cmd.Flags().StringVar(&etcdCA, "etcd-ca", "ca.crt", "CA Certificate used by etcd")
 	cmd.Flags().StringVar(&etcdCert, "etcd-cert", "etcd.crt", "Public key used by etcd")
 	cmd.Flags().StringVar(&etcdKey, "etcd-key", "etcd.key", "Private key used by etcd")
@@ -86,19 +74,6 @@ func resetPV() error {
 	defer cancel()
 
 	return recoverPV(ctx, etcdCli)
-}
-
-func resetPVC() error {
-	etcdCli, err := etcdClient()
-	if err != nil {
-		return fmt.Errorf("cannot connect to etcd: %v", err)
-	}
-	defer etcdCli.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	return recoverPVC(ctx, etcdCli)
 }
 
 func etcdClient() (*clientv3.Client, error) {
@@ -167,50 +142,5 @@ func recoverPV(ctx context.Context, client *clientv3.Client) error {
 
 	// Write the updated protobuf value back to etcd
 	client.Put(ctx, key, fixedPV.String())
-	return nil
-}
-
-func recoverPVC(ctx context.Context, client *clientv3.Client) error {
-
-	gvk := schema.GroupVersionKind{Group: v1.GroupName, Version: "v1", Kind: "PersistentVolumeClaim"}
-	pvc := &v1.PersistentVolumeClaim{}
-
-	runtimeScheme := runtime.NewScheme()
-	runtimeScheme.AddKnownTypeWithName(gvk, pvc)
-	protoSerializer := protobuf.NewSerializer(runtimeScheme, runtimeScheme)
-
-	// Get PV value from etcd which in protobuf format
-	key := fmt.Sprintf("/%s/persistentvolumeclaims/%s", k8sKeyPrefix, pvcName)
-	resp, err := client.Get(ctx, key)
-	if err != nil {
-		return err
-	}
-
-	if len(resp.Kvs) < 1 {
-		return fmt.Errorf("cannot find persistent volume claim [%s] in etcd with key [%s]\nplease check the k8s-key-prefix and the persistent volume claim name are set correctly", pvName, key)
-	}
-
-	// Decode protobuf value to PV struct
-	_, _, err = protoSerializer.Decode(resp.Kvs[0].Value, &gvk, pvc)
-	if err != nil {
-		return err
-	}
-
-	// Set PV status from Terminating to Bound by removing value of DeletionTimestamp and DeletionGracePeriodSeconds
-	if (*pvc).ObjectMeta.DeletionTimestamp == nil {
-		return fmt.Errorf("persistent volume claim [%s] is not in terminating status", pvName)
-	}
-	(*pvc).ObjectMeta.DeletionTimestamp = nil
-	(*pvc).ObjectMeta.DeletionGracePeriodSeconds = nil
-
-	// Encode fixed PV struct to protobuf value
-	var fixedPVC bytes.Buffer
-	err = protoSerializer.Encode(pvc, &fixedPVC)
-	if err != nil {
-		return err
-	}
-
-	// Write the updated protobuf value back to etcd
-	client.Put(ctx, key, fixedPVC.String())
 	return nil
 }
